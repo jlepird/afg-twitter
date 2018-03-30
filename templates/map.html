@@ -1,0 +1,348 @@
+{% extends "main.html" %}
+{% block head %}
+<!-- Leaflet stuff --> 
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.3.1/dist/leaflet.css"
+  integrity="sha512-Rksm5RenBEKSKFjgI3a41vrjkw4EVPlJ3+OiI65vTjIdo9brlAacEuKOiQ5OFh7cOI1bkDwLqdLw3Zg0cRJAAQ=="
+  crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.3.1/dist/leaflet.js"
+  integrity="sha512-/Nsx9X4HebavoBvEBuyp3I7od5tA0UzAxs+j83KgC8PU0kgB4XiK4Lfe4y4cgBtaRJQEIFCW+oC506aPT2L1zw=="
+  crossorigin=""></script>
+
+  <!-- DC.js requires V3 of D3, so can't use CDN version -->
+  <script src= "{{url_for('static', filename='js/d3.js') }}"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crossfilter/1.3.12/crossfilter.min.js"></script>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dc/2.1.10/dc.min.css"/>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/dc/2.1.10/dc.min.js"></script>
+
+{% endblock head %}
+
+{% block content %}
+
+<div class="col-md-2" style="padding-top:10px;">
+	<div class="card border-primary">
+		<div class="card-header text-white bg-primary"> Query Builder </div>
+		<div class="card-body">
+			<label for="term">Search Terms </label>
+			<input id="term" type="text" style="width:95%;" value="*">
+			<div style="padding-top: 5px;"></div>
+			<label for="radius"> Search Radius (km) </label>
+			<input id="radius" type="numeric" value="100" style="width:95%;">
+		</div>
+		<div class="card-footer text-muted">
+			<p id="instructions"> Click map to send query.</p>
+			<div id="undo-buttons" class="row hidden">
+				<div class="col-md-6">
+					<input type="button" class="btn btn-secondary" value="Clear Last" onclick="removeLast();">
+				</div>
+				<div class="col-md-6">
+					<input type="reset" class="btn btn-secondary" value="Clear All" onclick="removeAll();">
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="col-md-6">
+	<div id="map" style="height: 500px;"></div>
+</div>
+
+<div class="col-md-4" style="padding-top:10px;">
+	<div class="card border-success mb-3 hidden" id="results">
+		<div class="card-header bg-success text-white"> Results </div>
+		<div class="card-body">
+			<div id="sentiment-line">
+				<span> Sentiment Trend </span>
+				<a class='reset' style='visibility: hidden;' href="javascript: sentLine.filterAll(); dc.redrawAll();" > Reset Trend Filter  </a>
+			</div>
+			<div id="sentiment-bar">
+				<span> Sentiment Distribution  <a data-toggle="modal" data-target="#helpSentiment"> ? </a> </span>
+				<a class='reset' style='visibility: hidden;' href="javascript: sentBar.filterAll(); dc.redrawAll();" > Reset Sentiment Filter  </a>
+			</div>
+			<div id="language-plot">
+				<span> Language Breakdown</span>
+				<a class='reset' style='visibility: hidden;' href="javascript: langPie.filterAll(); dc.redrawAll();" > Reset Language Filter  </a>
+			</div>
+			<button type="button" class="btn btn-primary btn-block" onclick="downloadData();"> Download Filtered Data </button>
+		</div>
+	</div>
+</div>
+
+<!-- Popup Modal for Sentiment Help -->
+<div class="modal fade" id="helpSentiment" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+	<div class="modal-dialog" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title"> About Sentiment Analysis </h5>
+			</div>
+			<div class="modal-body">
+				<p> Foo bar baz </p>
+			</div>
+		</div>
+	</div>
+</div>
+
+<script>
+var m = L.map("map").setView([34., 67], 6);
+
+L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
+	attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="http://mapbox.com">Mapbox</a>',
+	maxZoom: 18,
+	id: 'mapbox.streets',
+	accessToken: 'pk.eyJ1IjoiamxlcGlyZCIsImEiOiJjaXU0YWpzMDcwaG1mMnRvMWQ1OWUyajNtIn0.GdK0FhpdJkfEvN3HxPwDDw'
+}).addTo(m);
+
+/* Functions for adding x and y axis labels */
+function AddXAxis(chartToUpdate, displayText)
+{
+    chartToUpdate.svg()
+                .append("text")
+                .attr("class", "x-axis-label")
+                .attr("text-anchor", "middle")
+                .attr("x", chartToUpdate.width()/2)
+                .attr("y", chartToUpdate.height()) //3.5
+                .text(displayText);
+}
+
+var dataRaw = [];
+var dfAll = [];
+var df, all;
+
+function updatePlots(dfr) {
+// Could do some more efficient indexing, for performance, 
+// but probably not needed at this time.
+	dfAll = []; 
+	dfr.forEach(function(click){
+		df = click;
+		click.forEach(function(d){
+			// d.time is returned in epoch miliseconds (int), so convert to `Date` obj
+			d.time = new Date(d.time);
+			dfAll.push(d);
+		}); 
+	});
+
+	// Calculate the x axis range.
+	var dateMin = d3.min(dfAll.map(function(d) {
+		return d.time;
+	}));
+	dateMin.setDate(dateMin.getDate() - 7); // add buffer to left side
+
+	var dateMax = d3.max(dfAll.map(function(d) {
+		return d.time;
+	}));
+	dateMax.setDate(dateMax.getDate() + 7); // add buffer to right side
+
+	var lineScale = d3.time.scale().domain([dateMin, dateMax]);
+	
+
+
+
+	df = crossfilter(dfAll);
+
+	// A dummy dimension where each record is a group.
+	all = df.dimension(function(d){
+		return d.id;
+	})
+
+	/* Sentiment trend */
+	var trendDim = df.dimension(function(d) {
+		// return dateFormat(d.time);
+		return d.time;
+	});
+
+	// Need to average sentiment by time, not just give counts.
+	var trendGroup = trendDim.group().reduce(
+		function(p, v) { // On add to group
+			p.n++;
+			p.total += v.sent;
+			p.avg = p.total / p.n;
+			return p;
+		},
+		function(p, v) { // on remove from group
+			p.n--;
+			p.total -= v.sent;
+			p.avg = p.n > 0 ? p.total / p.n : 0.; // can't div by 0
+			return p;
+		},
+		function() {     // data init
+			return {n: 0, total: 0., avg: 0.};
+		}
+	);
+
+	sentLine = dc.lineChart("#sentiment-line") // global for refreshing.
+	  .renderArea(true)
+	  .dimension(trendDim)
+	  .group(trendGroup)
+	  .x(lineScale)
+	  .xUnits(d3.time.months)
+	  .controlsUseVisibility(true)
+	  .valueAccessor(function(d){
+	  	return d.value.avg;
+	  });
+
+	/* Histogram of Sentiment*/ 
+	var sentDim = df.dimension(function(d) {
+		var acc = 0.5; // accuracy to which rounding should occur
+		sent = d.sent / acc;
+		sent = Math.round(sent);
+		sent *= acc;
+		return sent;
+	});
+
+	var sentGroup = sentDim.group();
+	sentBar = dc.barChart("#sentiment-bar") // global for refreshing.
+		.dimension(sentDim)
+		.group(sentGroup)
+		.x(d3.scale.linear().domain([-3, 3]))
+		.centerBar(true)
+		.gap(50)
+		.controlsUseVisibility(true);
+
+	/* Language Pie */
+	var langDim = df.dimension(function(d){
+		return d.lang;
+	});
+	var langGroup = langDim.group();
+
+	langPie = dc.pieChart("#language-plot") // global for refreshing.
+	  //.width(400)
+	  //.height(400)
+	  .radius(60)
+	  .ordinalColors(["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"])
+	  .dimension(langDim)
+	  .group(langGroup)
+	  .controlsUseVisibility(true);
+
+	dc.renderAll();
+	AddXAxis(sentBar, "Sentiment");
+}
+
+var circles = [];
+// Color scale for bubbles: [-3, 0, 3] -> [Red, Yellow, Green]
+var colorScale = d3.scale.linear()
+	.domain([-3, 0, 3])
+	.interpolate(d3.interpolateHcl)
+	.range([d3.rgb('#f44245'), d3.rgb("#dce011"), d3.rgb("#00a005")]);
+
+
+// Triggered when a click is registered on the leaflet map. 
+function onMapClick(e) {
+	$.post("/query/", {"lat":     e.latlng.lat, 
+					   "lng":     e.latlng.lng, 
+					   "radius":  $("#radius").val(),
+					   "q":       $("#term").val()}, 
+		success = function(data, status) { 
+
+		// Data returned as giant string, need to convert to actual JS objects.
+		data = JSON.parse(data); 
+
+		// Find the average sentiment for that bubble
+		var mean = 0.;
+		data.forEach(function(d){
+			mean += d.sent;
+		});
+		mean /= data.length;
+
+		var circle = L.circle([e.latlng.lat, e.latlng.lng], {
+			color: colorScale(mean),
+			radius: $("#radius").val() * 1000
+		}).addTo(m);
+		circle.bindPopup("<strong>Latitude:</strong> " + e.latlng.lat.toFixed(2) + "<br>" +  
+					     "<strong>Longitude:</strong> " + e.latlng.lng.toFixed(2) + "<br>" +
+					     "<strong>Search Radius:</strong> " +  (+$("#radius").val()).toFixed(2) + "km<br>" +
+					     "<strong>Search Term:</strong> " + $("#term").val() + "<br>" +
+					     "<strong>Average Sentiment:</strong> " + mean.toFixed(2));
+
+		circles.push(circle);
+
+		$("#instructions").addClass("hidden");
+		$("#undo-buttons").removeClass("hidden");
+		$("#results").removeClass("hidden");
+
+		dataRaw.push(data); 
+		updatePlots(dataRaw);
+	});
+}
+m.on("click", onMapClick);
+
+// Called by clear last button
+function removeLast() { 
+	var circle = circles.pop();
+	circle.removeFrom(m);
+	dataRaw.pop();
+
+	updatePlots(dataRaw);
+
+	if (circles.length == 0) {
+		$("#instructions").removeClass("hidden");
+		$("#undo-buttons").addClass("hidden");
+		$("#results").addClass("hidden")
+	}
+}
+
+// Called on clearall button 
+function removeAll() {
+	// Remove all but the last one without any data refreshing.
+	while (circles.length > 1) {
+		var circle = circles.pop();
+		circle.removeFrom(m);
+		dataRaw.pop();
+	}
+	// Remove the last and then refresh plots.
+	removeLast();
+}
+
+// Called on download button.
+var dateFormat = d3.time.format("%Y-%m-%d %H:%M %Z");
+function downloadData() {
+	var out = [["tweet_id", "text", "created_at", "sentiment", "language"]];
+	all.top(Infinity).forEach(function(d){
+		out.push([d.id, d.tweet, dateFormat(d.time), d.sent, d.lang]);
+	});
+	exportToCsv("tweets_as_of_" + (new Date()).toString() + ".csv", out);
+}
+
+// From https://stackoverflow.com/questions/14964035/how-to-export-javascript-array-info-to-csv-on-client-side
+function exportToCsv(filename, rows) {
+        var processRow = function (row) {
+            var finalVal = '';
+            for (var j = 0; j < row.length; j++) {
+                var innerValue = row[j] === null ? '' : row[j].toString();
+                if (row[j] instanceof Date) {
+                    innerValue = row[j].toLocaleString();
+                };
+                var result = innerValue.replace(/"/g, '""');
+                if (result.search(/("|,|\n)/g) >= 0)
+                    result = '"' + result + '"';
+                if (j > 0)
+                    finalVal += ',';
+                finalVal += result;
+            }
+            return finalVal + '\n';
+        };
+
+        var csvFile = '';
+        for (var i = 0; i < rows.length; i++) {
+            csvFile += processRow(rows[i]);
+        }
+
+        var blob = new Blob([csvFile], { type: 'text/csv;charset=utf-8;' });
+        if (navigator.msSaveBlob) { // IE 10+
+            navigator.msSaveBlob(blob, filename);
+        } else {
+            var link = document.createElement("a");
+            if (link.download !== undefined) { // feature detection
+                // Browsers that support HTML5 download attribute
+                var url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+    }
+
+</script>
+{% endblock content %}

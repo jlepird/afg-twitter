@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content = "IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+<title> Afghan Twitter Monitor </title>
+
+<!-- JQUERY + Popper for Bootstrap --> 
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+
+
+<!-- Bootstrap --> 
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"></script>
+
+<!-- Jquery UI -->
+<link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+
+
+
+<!-- AdminLTE Theme 
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/admin-lte/2.4.2/css/AdminLTE.css">
+--> 
+
+<!-- Main Color  
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/admin-lte/2.4.2/css/skins/skin-blue-light.css">
+--> 
+
+<style type="text/css">
+	.hidden {
+		display: none;
+	}
+</style>
+
+{% block head %}
+{% endblock head %}
+
+</head>
+
+<body>
+<nav class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0">
+	<span class="navbar-brand col-sm-3 col-md-2 mr-0"> Afghan Twitter Monitor </span>
+</nav>
+<div class="container-fluid">
+<div class="row">
+
+<!-- Sidebar not needed for now. 
+<nav class="col-md-2 d-none d-md-block bg-light sidebar">
+	<div class="sidebar-sticky">
+		<ul class="nav flex-column">
+			<li class="nav-item">
+				<a class="nav-link active" href="#">
+					<svg xmlns="http://www.w3.org/2000/svg" class="feather feather-home" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="24" height="24"><path d="M 3 9 l 9 -7 l 9 7 v 11 a 2 2 0 0 1 -2 2 H 5 a 2 2 0 0 1 -2 -2 Z" /><polyline points="9,22 9,12 15,12 15,22" /></svg>
+					Home
+					<span class="sr-only">(current)</span>
+				</a>
+			</li>
+		</ul>
+	</div>
+</nav>
+--> 
+
+{% block content %} 
+{% endblock content %}
+
+</div> <!-- Row --> 
+</div> <!-- Containter-fluid -->  
+</body>
+</html>
