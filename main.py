@@ -4,21 +4,23 @@ from flask import Flask, render_template, request
 import pandas as pd
 import tweepy as tw
 import random
+import json
+
 
 
 app = Flask(__name__)
 
+login = json.load(open("auth.json"))
 
-# auth = tw.OAuthHandler()
-# auth.set_access_token()
+auth = tw.OAuthHandler(login["app_key"], login["app_secret"])
+auth.set_access_token(login["auth_key"], login["auth_secret"])
 
-# # print(auth.get_authorization_url())
+api = tw.API(auth)
 
-# api = tw.API(auth)
 
-# tweets = api.home_timeline()
-# for tweet in public_tweets:
-# 	print(tweet.text)
+tweets = api.home_timeline()
+for tweet in tweets:
+ 	print(tweet.text)
 
 
 
@@ -48,4 +50,5 @@ def getTweets(lat, lon, radius):
 
 	return out
 
-app.run()
+if __name__ == "__main__":
+	app.run()
