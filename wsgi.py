@@ -7,7 +7,7 @@ import json
 
 
 
-app = Flask(__name__)
+application = Flask(__name__)
 
 
 """
@@ -28,11 +28,11 @@ for tweet in tweets:
 """
  
 
-@app.route("/")
+@application.route("/")
 def main():
 	return render_template("map.html")
 
-@app.route("/query/", methods = ["POST"])
+@application.route("/query/", methods = ["POST"])
 def query():
 	lng    = float(request.form.get("lng", 0))
 	lat    = float(request.form.get("lat", 0))
@@ -57,5 +57,5 @@ def getTweets(lat, lon, radius, q):
 
 
 if __name__ == "__main__":
-	app.run()
+	application.run()
 
