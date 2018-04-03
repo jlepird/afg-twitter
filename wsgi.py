@@ -4,6 +4,15 @@ import pandas as pd
 import tweepy as tw
 import random
 import json
+import nltk
+from googletrans import Translator
+tr = Translator()
+
+
+# download vader data if not already done.
+nltk.download("vader_lexicon")
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+sid = SentimentIntensityAnalyzer()
 
 
 
@@ -35,19 +44,27 @@ def query():
 
 	return df.to_json(orient = "records")
 
-dates = [pd.Timestamp('2018-03-21'), pd.Timestamp("2018-02-01"), pd.Timestamp("2018-01-20")]
-
 def getTweets(lat, lon, radius, q):
-	tweets = api.search(q, geocode=",".join([lat,lon,str(radius)+"km"]))
+
+	geocode = ",".join([str(lat), str(lon), str(radius)+"km"])
+
+	tweets = api.search(q, geocode=geocode, rpp=100)
 
 	out = pd.DataFrame()
 	for tweet in tweets:
+		try: 
+			text_en = tr.translate(tweet.text).text
+		except:
+			text_en = "(Unknown)"
+
+
 		out = out.append(pd.DataFrame({
 				"tweet": [tweet.text],
-				"time": [random.choice(dates)], 
-				"sent": [random.random() * 6 - 3],
-				"lang": ["en"],
-				"id":   [random.random()]
+				"tweet_en": [text_en],
+				"time": [pd.Timestamp(tweet.created_at)], 
+				"sent": [sid.polarity_scores(text_en)["compound"]],
+				"lang": [tweet.lang],
+				"id":   [tweet.id]
 			}), ignore_index=True)
 
 	return out
