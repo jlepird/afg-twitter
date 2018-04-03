@@ -10,14 +10,12 @@ import json
 application = Flask(__name__)
 
 
-"""
 # Load auth file
-
 login = json.load(open("auth.json"))
 
 auth = tw.OAuthHandler(login["app_key"], login["app_secret"])
 auth.set_access_token(login["auth_key"], login["auth_secret"])
-<<<<<<< Updated upstream
+
 
 api = tw.API(auth)
 
@@ -25,7 +23,7 @@ api = tw.API(auth)
 tweets = api.home_timeline()
 for tweet in tweets:
  	print(tweet.text)
-"""
+
  
 
 @application.route("/")
