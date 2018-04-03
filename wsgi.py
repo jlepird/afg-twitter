@@ -20,12 +20,6 @@ auth.set_access_token(login["auth_key"], login["auth_secret"])
 api = tw.API(auth)
 
 
-tweets = api.home_timeline()
-for tweet in tweets:
- 	print(tweet.text)
-
- 
-
 @application.route("/")
 def main():
 	return render_template("map.html")
@@ -44,12 +38,17 @@ def query():
 dates = [pd.Timestamp('2018-03-21'), pd.Timestamp("2018-02-01"), pd.Timestamp("2018-01-20")]
 
 def getTweets(lat, lon, radius, q):
-	out = pd.DataFrame({"tweet": ["I love afghanistan", "I hate afghanistan"],
-						"time": [random.choice(dates), random.choice(dates)], 
-						"sent": [random.random() * 6 - 3, random.random() * 6 - 3],
-						"lang": ["en", "fa"],
-						"id":   [random.random(), random.random()]
-						})
+	tweets = api.search(q, geocode=",".join([lat,lon,str(radius)+"km"]))
+
+	out = pd.DataFrame()
+	for tweet in tweets:
+		out = out.append(pd.DataFrame({
+				"tweet": [tweet.text],
+				"time": [random.choice(dates)], 
+				"sent": [random.random() * 6 - 3],
+				"lang": ["en"],
+				"id":   [random.random()]
+			}), ignore_index=True)
 
 	return out
 
