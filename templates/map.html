@@ -129,7 +129,7 @@ function AddXAxis(chartToUpdate, displayText)
 
 var dataRaw = [];
 var dfAll = [];
-var df, all;
+var df, all, all2;
 
 function updatePlots(dfr) {
 // Could do some more efficient indexing, for performance, 
@@ -164,6 +164,11 @@ function updatePlots(dfr) {
 
 	// A dummy dimension where each record is a group.
 	all = df.dimension(function(d){
+		return d.id;
+	});
+	// For unclear reasons, need separate dimension 
+	// now that we're using datacount as well.
+	all2 = df.dimension(function(d){
 		return d.id;
 	});
 
@@ -340,10 +345,10 @@ function removeAll() {
 }
 
 // Called on download button.
-var dateFormat = d3.time.format("%Y-%m-%d %H:%M %Z");
 function downloadData() {
+	var dateFormat = d3.time.format("%Y-%m-%d %H:%M %Z");
 	var out = [["tweet_id", "text", "created_at", "sentiment", "language"]];
-	all.top(Infinity).forEach(function(d){
+	all2.top(Infinity).forEach(function(d){
 		out.push([d.id, d.tweet, dateFormat(d.time), d.sent, d.lang]);
 	});
 	exportToCsv("tweets_as_of_" + (new Date()).toString() + ".csv", out);
