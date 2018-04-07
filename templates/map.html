@@ -31,16 +31,19 @@
 			<label for="radius"> Search Radius (km) </label>
 			<input id="radius" type="numeric" value="100" style="width:95%;">
 			<label for="count"> Tweets per Click </label>
-			<input id="count" type="numeric" value="10" style="width:95%;">
+			<input id="count" type="numeric" value="100" style="width:95%;">
 		</div>
 		<div class="card-footer text-muted">
 			<p id="instructions"> Click map to send query.</p>
 			<div id="undo-buttons" class="row hidden">
-				<div class="col-md-6">
+				<div class="col-sm">
 					<input type="button" class="btn btn-secondary" value="Clear Last" onclick="removeLast();">
 				</div>
-				<div class="col-md-6">
+				<div class="col-sm">
 					<input type="reset" class="btn btn-secondary" value="Clear All" onclick="removeAll();">
+				</div>
+				<div class="col-sm">
+					<input type="button" class="btn btn-info" data-toggle="modal" data-target="#helpSentiment" value="About">
 				</div>
 			</div>
 		</div>
@@ -67,7 +70,7 @@
 				<a class='reset' style='visibility: hidden;' href="javascript: sentLine.filterAll(); dc.redrawAll();" > Reset Trend Filter  </a>
 			</div>
 			<div id="sentiment-bar">
-				<span> Sentiment Distribution  <a data-toggle="modal" data-target="#helpSentiment"> ? </a> </span>
+				<span> Sentiment Distribution  </span>
 				<a class='reset' style='visibility: hidden;' href="javascript: sentBar.filterAll(); dc.redrawAll();" > Reset Sentiment Filter  </a>
 			</div>
 			<div id="language-plot">
@@ -87,14 +90,17 @@
 				<h5 class="modal-title"> About Sentiment Analysis </h5>
 			</div>
 			<div class="modal-body">
-				<p> Foo bar baz </p>
+				<p> This tool pulls tweets from <a href="twitter.com">Twitter</a> and feeds them through an automated <a href="https://en.wikipedia.org/wiki/Sentiment_analysis"> sentiment analysis</a>.</p>
+
+				<p> This website is <a href="https://github.com/jlepird/afg-twitter">open source</a> and licensed under the <a href="https://github.com/jlepird/afg-twitter/blob/master/LICENSE"> MIT License </a>.</p>
+
 			</div>
 		</div>
 	</div>
 </div>
 
-<footer class="page-footer font-small blue pt-4 mt-4">
-	 <div class="footer-copyright py-3 text-center">
+<footer class="footer">
+	 <div class="container">
 	Questions? Feature requests? Just<a href="mailto:jlepird@alum.mit.edu"> email the developer. </a>
 	</div>
 </footer>
@@ -144,6 +150,8 @@ function updatePlots(dfr) {
 	}));
 	dateMin.setDate(dateMin.getDate() - 1); // add buffer to left side
 
+
+	var dateFormat = d3.time.format("")
 	var dateMax = d3.max(dfAll.map(function(d) {
 		return d.time;
 	}));
@@ -159,11 +167,11 @@ function updatePlots(dfr) {
 		return d.id;
 	});
 
-	var dayInt = d3.time.day;
+	var dateFormat = d3.time.format("%Y-%m-%d");
 	/* Sentiment trend */
 	var trendDim = df.dimension(function(d, i) {
-		// return dateFormat(d.time);
-		return d.time;
+		return dateFormat(d.time);
+		//return d.time;
 		//return dayInt.round(d.time);
 	});
 
@@ -186,22 +194,27 @@ function updatePlots(dfr) {
 		}
 	);
 
+	
 	sentLine = dc.lineChart("#sentiment-line") // global for refreshing.
-	  .renderArea(true)
+	  //.renderArea(true)
 	  .dimension(trendDim)
 	  .group(trendGroup)
-	  .x(lineScale)
-	  .xUnits(d3.time.days)
-	  .round(d3.time.day.round)
+	  .x(d3.scale.ordinal())
+	  .xUnits(dc.units.ordinal)
+	  .margins({ top: 10, left: 30, right: 10, bottom: 50 })
+	  .yAxisLabel("Sentiment")
+	  .brushOn(false)
 	  .elasticY(true)
 	  .controlsUseVisibility(true)
 	  .valueAccessor(function(d){
 	  	return d.value.avg;
-	  });
-
-	sentLine.xAxis()
-		.ticks(d3.time.days, 7)
-		.tickFormat(d3.time.format("%e %b"));
+	  })
+	  .renderlet(function (chart) {
+   		// rotate x-axis labels
+   		chart.selectAll('g.x text')
+     		 .attr('transform', 'translate(-10,20) rotate(315)')
+     });
+		
 
 	/* Histogram of Sentiment*/ 
 	var sentDim = df.dimension(function(d) {
@@ -220,7 +233,7 @@ function updatePlots(dfr) {
 		.group(sentGroup)
 		.x(d3.scale.linear().domain([-1, 1]))
 		.centerBar(true)
-		.gap(50)
+		.gap(1)
 		.controlsUseVisibility(true);
 
 	/* Language Pie */
@@ -304,12 +317,13 @@ function removeLast() {
 	circle.removeFrom(m);
 	dataRaw.pop();
 
-	updatePlots(dataRaw);
-
+	console.log(circles.length);
 	if (circles.length == 0) {
 		$("#instructions").removeClass("hidden");
 		$("#undo-buttons").addClass("hidden");
 		$("#results").addClass("hidden")
+	} else {
+		updatePlots(dataRaw);
 	}
 }
 
