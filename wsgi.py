@@ -6,6 +6,7 @@ import random
 import json
 import nltk
 from googletrans import Translator
+import re
 tr = Translator()
 
 
@@ -14,7 +15,7 @@ nltk.download("vader_lexicon")
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 sid = SentimentIntensityAnalyzer()
 
-
+iso = pd.read_csv("data/iso_codes.csv")[["Language name", "639-1"]]
 
 application = Flask(__name__)
 
@@ -39,16 +40,27 @@ def query():
 	lat    = float(request.form.get("lat", 0))
 	radius = float(request.form.get("radius", 100))
 	q      =       request.form.get("q", "*")
+	n      =   int(request.form.get("n", 150))
 	
-	df = getTweets(lat, lng, radius, q)
+	df = getTweets(lat, lng, radius, q, n)
+
+	df = pd.merge(df, iso, left_on="lang", right_on="639-1")
+
+	df["lang"] = df["Language name"]
 
 	return df.to_json(orient = "records")
 
-def getTweets(lat, lon, radius, q):
+# Remove milliseconds from timestamp
+# Use re to get rid of the milliseconds.
+remove_ms = lambda x:re.sub("\+\d+\s","",x)
+
+def getTweets(lat, lon, radius, q, n):
 
 	geocode = ",".join([str(lat), str(lon), str(radius)+"km"])
 
-	tweets = api.search(q, geocode=geocode, rpp=100)
+	#tweets = api.search(q, geocode=geocode, count=n)
+
+	tweets = [status for status in tw.Cursor(api.search, q=q, geocode=geocode).items(n)]
 
 	out = pd.DataFrame()
 	for tweet in tweets:
@@ -57,11 +69,12 @@ def getTweets(lat, lon, radius, q):
 		except:
 			text_en = "(Unknown)"
 
+		created_at = remove_ms(str(tweet.created_at))
 
 		out = out.append(pd.DataFrame({
 				"tweet": [tweet.text],
 				"tweet_en": [text_en],
-				"time": [pd.Timestamp(tweet.created_at)], 
+				"time": [pd.to_datetime(created_at)], #, format="%a %b %d %H:%M:%S %Y")], 
 				"sent": [sid.polarity_scores(text_en)["compound"]],
 				"lang": [tweet.lang],
 				"id":   [tweet.id]
@@ -71,5 +84,5 @@ def getTweets(lat, lon, radius, q):
 
 
 if __name__ == "__main__":
-	application.run()
+	application.run(debug=True)
 

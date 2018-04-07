@@ -15,6 +15,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dc/2.1.10/dc.min.css"/>
   <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/dc/2.1.10/dc.min.js"></script>
 
+<link rel="stylesheet" href="{{ url_for('static', filename='css/loaders.css') }}"/>
+
 {% endblock head %}
 
 {% block content %}
@@ -28,6 +30,8 @@
 			<div style="padding-top: 5px;"></div>
 			<label for="radius"> Search Radius (km) </label>
 			<input id="radius" type="numeric" value="100" style="width:95%;">
+			<label for="count"> Tweets per Click </label>
+			<input id="count" type="numeric" value="10" style="width:95%;">
 		</div>
 		<div class="card-footer text-muted">
 			<p id="instructions"> Click map to send query.</p>
@@ -42,8 +46,11 @@
 		</div>
 	</div>
 </div>
-
 <div class="col-md-6">
+	<div id="loading" class="hidden">
+		<div class="loader"></div>
+		<div class="greyout"></div>
+	</div>
 	<div id="map" style="height: 500px;"></div>
 </div>
 
@@ -51,6 +58,10 @@
 	<div class="card border-success mb-3 hidden" id="results">
 		<div class="card-header bg-success text-white"> Results </div>
 		<div class="card-body">
+			<div class='dc-data-count'>
+				 <span class='filter-count'></span>
+				 selected out of <span class='total-count'></span> tweets found.
+			</div>
 			<div id="sentiment-line">
 				<span> Sentiment Trend </span>
 				<a class='reset' style='visibility: hidden;' href="javascript: sentLine.filterAll(); dc.redrawAll();" > Reset Trend Filter  </a>
@@ -81,6 +92,12 @@
 		</div>
 	</div>
 </div>
+
+<footer class="page-footer font-small blue pt-4 mt-4">
+	 <div class="footer-copyright py-3 text-center">
+	Questions? Feature requests? Just<a href="mailto:jlepird@alum.mit.edu"> email the developer. </a>
+	</div>
+</footer>
 
 <script>
 var m = L.map("map").setView([34., 67], 6);
@@ -125,29 +142,29 @@ function updatePlots(dfr) {
 	var dateMin = d3.min(dfAll.map(function(d) {
 		return d.time;
 	}));
-	dateMin.setDate(dateMin.getDate() - 7); // add buffer to left side
+	dateMin.setDate(dateMin.getDate() - 1); // add buffer to left side
 
 	var dateMax = d3.max(dfAll.map(function(d) {
 		return d.time;
 	}));
-	dateMax.setDate(dateMax.getDate() + 7); // add buffer to right side
+	dateMax.setDate(dateMax.getDate() + 1); // add buffer to right side
 
-	var lineScale = d3.time.scale().domain([dateMin, dateMax]);
-	
-
-
+	var lineScale = d3.time.scale()
+		.domain([dateMin, dateMax]);
 
 	df = crossfilter(dfAll);
 
 	// A dummy dimension where each record is a group.
 	all = df.dimension(function(d){
 		return d.id;
-	})
+	});
 
+	var dayInt = d3.time.day;
 	/* Sentiment trend */
-	var trendDim = df.dimension(function(d) {
+	var trendDim = df.dimension(function(d, i) {
 		// return dateFormat(d.time);
 		return d.time;
+		//return dayInt.round(d.time);
 	});
 
 	// Need to average sentiment by time, not just give counts.
@@ -174,18 +191,26 @@ function updatePlots(dfr) {
 	  .dimension(trendDim)
 	  .group(trendGroup)
 	  .x(lineScale)
-	  .xUnits(d3.time.months)
+	  .xUnits(d3.time.days)
+	  .round(d3.time.day.round)
+	  .elasticY(true)
 	  .controlsUseVisibility(true)
 	  .valueAccessor(function(d){
 	  	return d.value.avg;
 	  });
 
+	sentLine.xAxis()
+		.ticks(d3.time.days, 7)
+		.tickFormat(d3.time.format("%e %b"));
+
 	/* Histogram of Sentiment*/ 
 	var sentDim = df.dimension(function(d) {
-		var acc = 0.5; // accuracy to which rounding should occur
-		sent = d.sent / acc;
+		var acc = 0.2; // accuracy to which rounding should occur
+		var sent = d.sent / acc;
 		sent = Math.round(sent);
 		sent *= acc;
+		if (sent > 1 ) sent =  1;
+		if (sent < -1) sent = -1;
 		return sent;
 	});
 
@@ -193,7 +218,7 @@ function updatePlots(dfr) {
 	sentBar = dc.barChart("#sentiment-bar") // global for refreshing.
 		.dimension(sentDim)
 		.group(sentGroup)
-		.x(d3.scale.linear().domain([-3, 3]))
+		.x(d3.scale.linear().domain([-1, 1]))
 		.centerBar(true)
 		.gap(50)
 		.controlsUseVisibility(true);
@@ -204,14 +229,19 @@ function updatePlots(dfr) {
 	});
 	var langGroup = langDim.group();
 
-	langPie = dc.pieChart("#language-plot") // global for refreshing.
+	langPie = dc.rowChart("#language-plot") // global for refreshing.
 	  //.width(400)
-	  //.height(400)
-	  .radius(60)
+	  .height(400)
+	  //.radius(60)
 	  .ordinalColors(["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"])
 	  .dimension(langDim)
 	  .group(langGroup)
 	  .controlsUseVisibility(true);
+
+	var all = df.groupAll();
+	var counter = dc.dataCount(".dc-data-count")
+	  .dimension(df)
+	  .group(all);
 
 	dc.renderAll();
 	AddXAxis(sentBar, "Sentiment");
@@ -227,10 +257,12 @@ var colorScale = d3.scale.linear()
 
 // Triggered when a click is registered on the leaflet map. 
 function onMapClick(e) {
+	$("#loading").removeClass("hidden");
 	$.post("/query/", {"lat":     e.latlng.lat, 
 					   "lng":     e.latlng.lng, 
 					   "radius":  $("#radius").val(),
-					   "q":       $("#term").val()}, 
+					   "q":       $("#term").val(),
+					   "n":       $("#count").val()}, 
 		success = function(data, status) { 
 
 		// Data returned as giant string, need to convert to actual JS objects.
@@ -258,6 +290,7 @@ function onMapClick(e) {
 		$("#instructions").addClass("hidden");
 		$("#undo-buttons").removeClass("hidden");
 		$("#results").removeClass("hidden");
+		$("#loading").addClass("hidden");
 
 		dataRaw.push(data); 
 		updatePlots(dataRaw);
