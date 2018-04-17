@@ -1,0 +1,3 @@
+[submodule "static/js/d3-wordcloud"]
+	path = static/js/d3-wordcloud
+	url = https://github.com/jlepird/d3-wordcloud.git
