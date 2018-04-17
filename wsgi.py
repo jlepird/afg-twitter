@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, url_for
 import pandas as pd
 import tweepy as tw
 import random
@@ -67,7 +67,7 @@ def getTweets(lat, lon, radius, q, n):
 		try: 
 			text_en = tr.translate(tweet.text).text
 		except:
-			text_en = "(Unknown)"
+			text_en = ""
 
 		created_at = remove_ms(str(tweet.created_at))
 
@@ -82,7 +82,6 @@ def getTweets(lat, lon, radius, q, n):
 
 	return out
 
-
 if __name__ == "__main__":
-	application.run(debug=False)
+	application.run(debug=True)
 
