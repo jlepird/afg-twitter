@@ -31,7 +31,7 @@ six==1.11.0
 tweepy==3.6.0
 urllib3==1.26.5
 virtualenv==15.1.0
-Werkzeug==0.14.1
+Werkzeug==2.2.3
 wrapt==1.10.11
 astroid==1.6.2
 certifi==2018.1.18
@@ -71,7 +71,7 @@ six==1.11.0
 tweepy==3.6.0
 urllib3==1.26.5
 virtualenv==15.1.0
-Werkzeug==0.14.1
+Werkzeug==2.2.3
 wordcloud==1.4.1
 wrapt==1.10.11
 astroid==1.6.2
@@ -110,5 +110,5 @@ six==1.11.0
 tweepy==3.6.0
 urllib3==1.26.5
 virtualenv==15.1.0
-Werkzeug==0.14.1
+Werkzeug==2.2.3
 wrapt==1.10.11
